@@ -1,0 +1,81 @@
+name: Download PentAGI Docker Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Docker images to download (comma-separated)'
+        required: true
+        default: 'vxcontrol/pentagi:latest,vxcontrol/pgvector:latest,vxcontrol/scraper:latest,quay.io/prometheuscommunity/postgres-exporter:v0.16.0'
+
+jobs:
+  download-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download and save images
+        run: |
+          # Parse images from input
+          IMAGES="${{ github.event.inputs.images }}"
+          IFS=',' read -ra IMAGE_ARRAY <<< "$IMAGES"
+
+          # Create output directory
+          mkdir -p images
+
+          # Download each image and save as tar
+          for image in "${IMAGE_ARRAY[@]}"; do
+            echo "Downloading $image..."
+            docker pull "$image"
+
+            # Create safe filename
+            filename=$(echo "$image" | sed 's/[\/:]/_/g')
+            echo "Saving $image as images/$filename.tar..."
+            docker save -o "images/$filename.tar" "$image"
+          done
+
+          # Create a combined tar file
+          echo "Creating combined archive..."
+          tar -czf pentagi-images.tar.gz -C images .
+
+      - name: Upload images as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pentagi-images
+          path: |
+            images/
+            pentagi-images.tar.gz
+          retention-days: 1
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: PentAGI Images v${{ github.run_number }}
+          body: |
+            PentAGI Docker images downloaded on ${{ github.event.repository.updated_at }}
+
+            Images included:
+            - vxcontrol/pentagi:latest
+            - vxcontrol/pgvector:latest
+            - vxcontrol/scraper:latest
+            - quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+
+            Download the artifact and extract it, then load the images on your server:
+            ```bash
+            # Extract
+            tar -xzf pentagi-images.tar.gz
+
+            # Load each image
+            for tarfile in *.tar; do
+              docker load -i "$tarfile"
+            done
+            ```
+          files: pentagi-images.tar.gz
+          draft: false
+          prerelease: false
