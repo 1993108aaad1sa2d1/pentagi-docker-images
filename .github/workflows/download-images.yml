@@ -64,19 +64,42 @@ jobs:
     needs: download-images
     runs-on: ubuntu-latest
     if: always()
+    timeout-minutes: 30
 
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          pattern: "*"
 
       - name: Combine all images
         run: |
           echo "Combining all images..."
           mkdir -p combined
-          find artifacts -name "*.tar" -exec cp {} combined/ \;
+
+          # Retry download up to 3 times
+          for i in {1..3}; do
+            if find artifacts -name "*.tar" -exec cp {} combined/ \;; then
+              echo "Successfully copied files"
+              break
+            else
+              echo "Attempt $i failed, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+
+          # List files
+          echo "Files in combined directory:"
+          ls -la combined/
+
+          # Create archive
+          echo "Creating archive..."
           tar -czf pentagi-images.tar.gz -C combined .
+
+          # Verify archive
+          echo "Archive created successfully:"
+          ls -lh pentagi-images.tar.gz
 
       - name: Upload combined archive
         uses: actions/upload-artifact@v4
