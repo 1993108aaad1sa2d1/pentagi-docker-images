@@ -14,7 +14,15 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        image: [vxcontrol/pentagi:latest, vxcontrol/pgvector:latest, vxcontrol/scraper:latest, quay.io/prometheuscommunity/postgres-exporter:v0.16.0]
+        include:
+          - image: vxcontrol/pentagi:latest
+            name: pentagi
+          - image: vxcontrol/pgvector:latest
+            name: pgvector
+          - image: vxcontrol/scraper:latest
+            name: scraper
+          - image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+            name: postgres-exporter
       fail-fast: false
 
     steps:
@@ -45,13 +53,10 @@ jobs:
           echo "Saving $IMAGE as $FILENAME.tar..."
           docker save -o "$FILENAME.tar" "$IMAGE"
 
-          # Upload as artifact
-          echo "Uploading $FILENAME.tar as artifact..."
-
       - name: Upload image as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.image }}
+          name: ${{ matrix.name }}
           path: "*.tar"
           retention-days: 1
 
